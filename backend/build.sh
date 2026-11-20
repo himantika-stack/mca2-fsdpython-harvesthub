@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
-# exit on error
 set -o errexit
+
+echo "=== Starting HarvestHub Production Build ==="
 
 pip install --upgrade pip
 pip install -r requirements.txt
 python manage.py collectstatic --noinput
-python manage.py migrate
+
+if [ -n "$MYSQL_HOST" ] || [ -n "$DATABASE_URL" ]; then
+    echo "Connecting to MySQL and applying migrations..."
+    python manage.py migrate
+else
+    echo "Skipping migrate step (MYSQL_HOST / DATABASE_URL not yet configured in environment variables)."
+fi
+
+echo "=== HarvestHub Build Finished Successfully ==="
