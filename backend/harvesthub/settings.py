@@ -67,25 +67,24 @@ WSGI_APPLICATION = "harvesthub.wsgi.application"
 db_url = os.getenv("DATABASE_URL") or os.getenv("MYSQL_URL")
 if db_url:
     parsed_url = urllib.parse.urlparse(db_url)
-    db_name = parsed_url.path.lstrip("/")
+    db_name = parsed_url.path.lstrip("/") or "test"
     db_user = urllib.parse.unquote(parsed_url.username or "")
     db_password = urllib.parse.unquote(parsed_url.password or "")
     db_host = parsed_url.hostname or ""
-    db_port = str(parsed_url.port or 3306)
+    db_port = str(parsed_url.port or (4000 if "tidb" in db_host.lower() else 3306))
 else:
-    db_name = os.getenv("MYSQL_DATABASE", "")
+    db_host = os.getenv("MYSQL_HOST", "")
+    default_port = "4000" if (db_host and "tidb" in db_host.lower()) else "3306"
+    db_port = os.getenv("MYSQL_PORT", default_port)
+    db_name = os.getenv("MYSQL_DATABASE") or os.getenv("MYSQL_DB") or "test"
     db_user = os.getenv("MYSQL_USER", "")
     db_password = os.getenv("MYSQL_PASSWORD", "")
-    db_host = os.getenv("MYSQL_HOST", "")
-    db_port = os.getenv("MYSQL_PORT", "3306")
 
 missing_mysql = []
-if not db_name:
-    missing_mysql.append("MYSQL_DATABASE")
-if not db_user:
-    missing_mysql.append("MYSQL_USER")
 if not db_host:
     missing_mysql.append("MYSQL_HOST")
+if not db_user:
+    missing_mysql.append("MYSQL_USER")
 
 if missing_mysql and not any(arg in {"test", "makemigrations", "collectstatic"} for arg in sys.argv):
     raise RuntimeError("MySQL configuration is required. Set " + ", ".join(missing_mysql) + " or DATABASE_URL in environment variables.")
