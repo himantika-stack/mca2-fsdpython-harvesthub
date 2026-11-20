@@ -18,13 +18,22 @@ router.register("inventory-transactions", views.InventoryTransactionViewSet, bas
 
 urlpatterns = [
     path("auth/csrf/", views.csrf),
+    path("auth/csrf", views.csrf),
     path("auth/register/", views.register),
+    path("auth/register", views.register),
     path("auth/login/", views.login_view),
+    path("auth/login", views.login_view),
     path("auth/logout/", views.logout_view),
+    path("auth/logout", views.logout_view),
     path("profile/", views.profile_view),
+    path("profile", views.profile_view),
     path("dashboard/", views.dashboard),
+    path("dashboard", views.dashboard),
     path("forecast/", views.forecast),
+    path("forecast", views.forecast),
     path("reports/", views.reports),
+    path("reports", views.reports),
     path("reports/export/", views.export_csv),
+    path("reports/export", views.export_csv),
     path("", include(router.urls)),
 ]

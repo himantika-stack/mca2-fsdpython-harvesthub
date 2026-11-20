@@ -1,35 +1,83 @@
-const API_ROOT = "/api";
-let csrfReady;
+const rawBaseUrl = (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+export const API_ROOT = rawBaseUrl ? `${rawBaseUrl}/api` : "/api";
 
-function cookie(name) {
+let inMemoryCsrfToken = "";
+let csrfPromise = null;
+
+export function cookie(name) {
+  if (typeof document === "undefined") return "";
   return document.cookie.split("; ").find((row) => row.startsWith(`${name}=`))?.split("=")[1] || "";
 }
 
-async function prepareCsrf() {
-  if (!csrfReady) {
-    csrfReady = fetch(`${API_ROOT}/auth/csrf/`, { credentials: "include" }).then((response) => {
-      if (!response.ok) throw new Error("Could not initialise secure session.");
-    });
+export async function prepareCsrf() {
+  if (!csrfPromise) {
+    csrfPromise = fetch(`${API_ROOT}/auth/csrf/`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to initialize session (${response.status}).`);
+        }
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const data = await response.json().catch(() => ({}));
+          if (data && data.csrfToken) {
+            inMemoryCsrfToken = data.csrfToken;
+          }
+        }
+      })
+      .catch((err) => {
+        csrfPromise = null; // Allow retry on subsequent attempts
+        throw err;
+      });
   }
-  return csrfReady;
+  return csrfPromise;
 }
 
 export async function request(path, options = {}) {
-  await prepareCsrf();
-  const headers = { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers };
-  const csrf = cookie("csrftoken");
-  if (csrf) headers["X-CSRFToken"] = csrf;
-  const response = await fetch(`${API_ROOT}${path}`, { credentials: "include", ...options, headers });
+  // Try to initialise CSRF token; if it fails (e.g. backend booting up or offline), continue to let fetch surface detailed error
+  try {
+    await prepareCsrf();
+  } catch (e) {
+    // Session token retrieval warning logged silently
+  }
+
+  const headers = {
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...options.headers,
+  };
+
+  const csrf = inMemoryCsrfToken || cookie("csrftoken");
+  if (csrf) {
+    headers["X-CSRFToken"] = csrf;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const response = await fetch(`${API_ROOT}${normalizedPath}`, {
+    credentials: "include",
+    ...options,
+    headers,
+  });
+
   const contentType = response.headers.get("content-type") || "";
-  const payload = contentType.includes("application/json") ? await response.json() : await response.text();
-  if (!response.ok) {
-    const detail = typeof payload === "object"
-      ? Object.values(payload).flat().join(" ")
-      : contentType.includes("text/html")
-        ? "The server could not complete this request. Check the backend terminal for details."
-        : payload;
+  const isJson = contentType.includes("application/json");
+  const payload = isJson ? await response.json() : await response.text();
+
+  if (!response.ok || !isJson) {
+    let detail = "The request could not be completed.";
+    if (isJson && typeof payload === "object" && payload !== null) {
+      detail = Object.entries(payload)
+        .map(([key, val]) => {
+          const valStr = Array.isArray(val) ? val.join(" ") : String(val);
+          return key === "detail" || key === "non_field_errors" ? valStr : `${key}: ${valStr}`;
+        })
+        .join(" ");
+    } else if (contentType.includes("text/html")) {
+      detail = `API returned HTML instead of JSON (${response.status} ${response.statusText}). Check API URL configuration and backend status.`;
+    } else if (typeof payload === "string" && payload.trim()) {
+      detail = payload;
+    }
     throw new Error(detail || "The request could not be completed.");
   }
+
   return payload;
 }
 
