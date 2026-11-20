@@ -36,16 +36,21 @@ def csrf(request):
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@ensure_csrf_cookie
 def register(request):
     serializer = RegistrationSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     user = serializer.save()
     login(request, user)
-    return Response({"user": ProfileSerializer(user.farmer_profile).data}, status=status.HTTP_201_CREATED)
+    return Response({
+        "user": ProfileSerializer(user.farmer_profile).data,
+        "csrfToken": get_token(request),
+    }, status=status.HTTP_201_CREATED)
 
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
+@ensure_csrf_cookie
 def login_view(request):
     username = request.data.get("username", "").strip()
     password = request.data.get("password", "")
@@ -56,7 +61,10 @@ def login_view(request):
         return Response({"detail": "Invalid username or password."}, status=status.HTTP_400_BAD_REQUEST)
     login(request, user)
     profile, _ = FarmerProfile.objects.get_or_create(user=user, defaults={"full_name": user.get_full_name() or user.username})
-    return Response({"user": ProfileSerializer(profile).data})
+    return Response({
+        "user": ProfileSerializer(profile).data,
+        "csrfToken": get_token(request),
+    })
 
 
 @api_view(["POST"])

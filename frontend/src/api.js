@@ -61,6 +61,10 @@ export async function request(path, options = {}) {
   const isJson = contentType.includes("application/json");
   const payload = isJson ? await response.json() : await response.text();
 
+  if (isJson && payload && typeof payload === "object" && payload.csrfToken) {
+    inMemoryCsrfToken = payload.csrfToken;
+  }
+
   if (!response.ok || !isJson) {
     let detail = "The request could not be completed.";
     if (isJson && typeof payload === "object" && payload !== null) {
