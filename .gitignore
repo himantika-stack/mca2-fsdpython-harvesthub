@@ -1,0 +1,18 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/.env
+backend/staticfiles/
+backend/media/
+
+# JavaScript
+frontend/node_modules/
+frontend/dist/
+
+# Editors / operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
